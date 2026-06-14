@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>טבלת הזמנות</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f4f7f9;
+            color: #1b1f23;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 24px;
+        }
+
+        .table-shell {
+            width: min(1180px, 100%);
+            background: #ffffff;
+            border: 1px solid #dfe2e5;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(51, 63, 79, 0.08);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            direction: rtl;
+            table-layout: fixed;
+        }
+
+        thead {
+            background: #f0f5f9;
+        }
+
+        th, td {
+            padding: 16px 18px;
+            text-align: right;
+            border-bottom: 1px solid #edf2f7;
+            font-size: 15px;
+        }
+
+        th {
+            font-weight: 700;
+            color: #344054;
+            letter-spacing: 0.01em;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fafbfc;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .status-select {
+            width: 100%;
+            border: none;
+            font-weight: 600;
+            color: inherit;
+            cursor: pointer;
+            min-height: 40px;
+            padding: 0 12px;
+            border-radius: 999px;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+
+        .status-select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+        }
+
+        .status-home {
+            background: #fbe8ea;
+            color: #b42318;
+        }
+
+        .status-table {
+            background: #eef2ff;
+            color: #1e40af;
+        }
+
+        .status-badge::after {
+            content: '\25be';
+            display: inline-block;
+            font-size: 11px;
+            line-height: 1;
+        }
+
+        .row-handle {
+            width: 24px;
+            height: 24px;
+            border: 1px solid #cbd5db;
+            border-radius: 6px;
+            background: #ffffff;
+        }
+
+        .empty-cell {
+            color: transparent;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 18px 22px;
+            border-bottom: 1px solid #edf2f7;
+            background: #ffffff;
+        }
+
+        .toolbar h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #111827;
+        }
+
+        .toolbar button {
+            border: none;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        }
+
+        .toolbar button:hover {
+            transform: translateY(-1px);
+        }
+
+        .toolbar button.save {
+            background: #2563eb;
+            color: white;
+        }
+
+        .toolbar button.add {
+            background: #10b981;
+            color: white;
+        }
+
+        .toolbar button.archive {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .actions-cell {
+            white-space: nowrap;
+            width: 160px;
+        }
+
+        .order-cell {
+            font-weight: 700;
+            color: #111827;
+            letter-spacing: 0.01em;
+            text-shadow: 0 0 1px rgba(0, 0, 0, 0.05);
+        }
+
+        tbody tr.alert-highlight td {
+            background-color: #fff7d7 !important;
+            transition: background-color 0.3s ease;
+        }
+
+        .action-btn {
+            appearance: none;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-left: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .alert-btn {
+            background: #0284c7;
+            color: white;
+        }
+
+        .alert-btn::before {
+            content: '🔔';
+            margin-inline-end: 6px;
+        }
+
+        .archive-panel {
+            display: none;
+            background: #ffffff;
+            border-top: 1px solid #edf2f7;
+            padding: 16px 22px 22px;
+        }
+
+        .archive-panel.active {
+            display: block;
+        }
+
+        .archive-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .archive-panel-header h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #1f2937;
+        }
+
+        .archive-panel-header button {
+            appearance: none;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            background: #ef4444;
+            color: white;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .archive-panel-header button:hover {
+            transform: translateY(-1px);
+        }
+
+        .archive-panel h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #1f2937;
+        }
+
+        .archive-empty {
+            padding: 18px;
+            border-radius: 14px;
+            background: #f8fafc;
+            color: #475569;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .editable-cell {
+            background: rgba(16, 185, 129, 0.08);
+            color: #111827;
+            min-width: 100px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .editable-cell:focus {
+            outline: 2px solid #2563eb;
+            outline-offset: -2px;
+        }
+
+        th:nth-child(1), td:nth-child(1) { width: 160px; }
+        th:nth-child(2), td:nth-child(2) { width: 320px; }
+        th:nth-child(3), td:nth-child(3) { width: 120px; }
+        th:nth-child(4), td:nth-child(4) { width: 100px; }
+
+        td, th {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        /* Make the Name / Phone column have a white background (not green) */
+        td.editable-cell:nth-child(5) {
+            background: #ffffff;
+            color: #111827;
+        }
+
+        @media (max-width: 720px) {
+            body {
+                padding: 12px;
+                align-items: stretch;
+            }
+
+            .table-shell {
+                width: 100%;
+                border-radius: 16px;
+                margin: 0 auto;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 14px 16px;
+                gap: 10px;
+            }
+
+            .toolbar h1 {
+                font-size: 16px;
+                text-align: right;
+            }
+
+            .toolbar > div {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: flex-start;
+            }
+
+            table {
+                overflow-x: auto;
+                display: block;
+                table-layout: auto;
+            }
+
+            thead, tbody, tr {
+                display: table;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            th, td {
+                padding: 12px 10px;
+                font-size: 14px;
+            }
+
+            th:nth-child(1), td:nth-child(1),
+            th:nth-child(2), td:nth-child(2),
+            th:nth-child(3), td:nth-child(3),
+            th:nth-child(4), td:nth-child(4),
+            th:nth-child(5), td:nth-child(5) {
+                width: auto;
+            }
+
+            .actions-cell {
+                width: auto;
+            }
+
+            .action-btn {
+                padding: 8px 10px;
+                margin-left: 6px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="table-shell">
+        <div class="toolbar">
+            <h1>טבלת הזמנות - עריכה ישירה</h1>
+            <div>
+                <button class="archive" id="toggleArchive">הצג ארכיון</button>
+                <button class="add" id="addRow">הוסף שורה</button>
+                <button class="save" id="saveData">שמור שינויים</button>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>פעולות</th>
+                    <th>הזמנה</th>
+                    <th>סטטוס</th>
+                    <th>מחיר</th>
+                    <th>שם / טלפון</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+        <div class="archive-panel" id="archivePanel">
+            <div class="archive-panel-header">
+                <h2>ארכיון רשומות</h2>
+                <button class="delete" id="clearArchive">נקה ארכיון</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>הזמנה</th>
+                        <th>סטטוס</th>
+                        <th>מחיר</th>
+                        <th>שם / טלפון</th>
+                        <th>נמחק ב</th>
+                    </tr>
+                </thead>
+                <tbody id="archiveBody"></tbody>
+            </table>
+            <div class="archive-empty" id="archiveEmpty">אין פריטים בארכיון כרגע.</div>
+        </div>
+    </div>
+    <script>
+        const STORAGE_KEY = 'orderScreenData';
+        const ARCHIVE_KEY = 'orderScreenArchive';
+        const ARCHIVE_TTL_MS = 24 * 60 * 60 * 1000;
+        const defaultRows = [];
+
+        const statusOptions = [
+            { value: '', label: 'בחר סטטוס', className: '' },
+            { value: 'בית', label: 'בית', className: 'status-home' },
+            { value: 'שולחן', label: 'שולחן', className: 'status-table' }
+        ];
+
+        const tableBody = document.getElementById('tableBody');
+        const saveButton = document.getElementById('saveData');
+        const addButton = document.getElementById('addRow');
+        const toggleArchiveButton = document.getElementById('toggleArchive');
+        const archivePanel = document.getElementById('archivePanel');
+        const archiveBody = document.getElementById('archiveBody');
+        const archiveEmpty = document.getElementById('archiveEmpty');
+        const clearArchiveButton = document.getElementById('clearArchive');
+
+        function loadData() {
+            localStorage.removeItem(STORAGE_KEY);
+            return [];
+        }
+
+        function saveData(rows) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+        }
+
+        function loadArchiveData() {
+            const raw = localStorage.getItem(ARCHIVE_KEY);
+            if (!raw) {
+                return [];
+            }
+
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) {
+                    return [];
+                }
+
+                const now = Date.now();
+                const filtered = parsed.filter(item => now - item.archivedAt < ARCHIVE_TTL_MS);
+                if (filtered.length !== parsed.length) {
+                    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(filtered));
+                }
+                return filtered;
+            } catch {
+                return [];
+            }
+        }
+
+
+
+        function saveArchiveData(rows) {
+            localStorage.setItem(ARCHIVE_KEY, JSON.stringify(rows));
+        }
+
+        function getStatusClass(status) {
+            const match = statusOptions.find(option => option.value === status);
+            return match ? match.className : '';
+        }
+
+        function createStatusSelect(value) {
+            const select = document.createElement('select');
+            select.className = `status-select ${getStatusClass(value)}`;
+            statusOptions.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option.value;
+                opt.textContent = option.label || option.value;
+                if (option.value === value) {
+                    opt.selected = true;
+                }
+                select.appendChild(opt);
+            });
+            select.addEventListener('change', () => {
+                select.className = `status-select ${getStatusClass(select.value)}`;
+            });
+            return select;
+        }
+
+        function playNotificationSound() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const gain = ctx.createGain();
+                const filter = ctx.createBiquadFilter();
+
+                osc1.type = 'square';
+                osc2.type = 'sawtooth';
+                osc2.detune.value = 15;
+                filter.type = 'highpass';
+                filter.frequency.value = 700;
+                filter.Q.value = 1;
+                gain.gain.value = 0.0001;
+
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+
+                const start = ctx.currentTime;
+                const pulses = [0, 0.18, 0.42, 0.78, 1.15, 1.6, 2.05];
+                const pulseDuration = 0.18;
+                const totalDuration = 3.0;
+
+                pulses.forEach((offset, index) => {
+                    const time = start + offset;
+                    const frequency = 880 + (index * 80);
+                    osc1.frequency.setValueAtTime(frequency, time);
+                    osc2.frequency.setValueAtTime(frequency * 1.35, time);
+                    gain.gain.setValueAtTime(0.0001, time);
+                    gain.gain.linearRampToValueAtTime(0.55, time + 0.008);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, time + pulseDuration);
+                });
+
+                osc1.start(start);
+                osc2.start(start);
+                osc1.stop(start + totalDuration);
+                osc2.stop(start + totalDuration);
+                setTimeout(() => ctx.close(), (totalDuration + 0.1) * 1000);
+            } catch (e) {
+                console.warn('Audio play failed', e);
+            }
+        }
+
+        function createActionsCell(row, tr) {
+            const actionsCell = document.createElement('td');
+            actionsCell.className = 'actions-cell';
+
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'action-btn delete-btn';
+            deleteButton.textContent = 'מחק';
+            deleteButton.addEventListener('click', () => {
+                const rowData = {
+                    order: tr.children[1].textContent.trim(),
+                    status: tr.children[2].querySelector('select') ? tr.children[2].querySelector('select').value : '',
+                    price: tr.children[3].textContent.trim(),
+                    customer: tr.children[4].textContent.trim()
+                };
+                archiveRow(rowData);
+                tr.remove();
+                saveData(collectData());
+                renderArchive();
+            });
+
+            const alertButton = document.createElement('button');
+            alertButton.type = 'button';
+            alertButton.className = 'action-btn alert-btn';
+            alertButton.textContent = 'התראה';
+            alertButton.addEventListener('click', () => {
+                playNotificationSound();
+                tr.classList.add('alert-highlight');
+                setTimeout(() => tr.classList.remove('alert-highlight'), 5000);
+            });
+
+            actionsCell.appendChild(alertButton);
+            actionsCell.appendChild(deleteButton);
+            return actionsCell;
+        }
+
+        function archiveRow(row) {
+            const archive = loadArchiveData();
+            archive.push({ ...row, archivedAt: Date.now() });
+            saveArchiveData(archive);
+        }
+
+        function renderTable() {
+            const rows = loadData();
+            tableBody.innerHTML = '';
+            rows.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                            <td></td>
+                    <td contenteditable="true" class="editable-cell order-cell">${row.order}</td>
+                    <td></td>
+                    <td contenteditable="true" class="editable-cell">${row.price}</td>
+                    <td contenteditable="true" class="editable-cell">${row.customer}</td>
+                `;
+                const actionsCell = createActionsCell(row, tr);
+                tr.children[0].replaceWith(actionsCell);
+
+                const statusCell = tr.children[2];
+                const select = createStatusSelect(row.status);
+                statusCell.appendChild(select);
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function collectData() {
+            const rows = [];
+            Array.from(tableBody.children).forEach(tr => {
+                const order = tr.children[1].textContent.trim();
+                const status = tr.children[2].querySelector('select').value;
+                const price = tr.children[3].textContent.trim();
+                const customer = tr.children[4].textContent.trim();
+                if (order || status || price || customer) {
+                    rows.push({ order, status, price, customer });
+                }
+            });
+            return rows;
+        }
+
+        function renderArchive() {
+            const archiveRows = loadArchiveData();
+            archiveBody.innerHTML = '';
+            if (archiveRows.length === 0) {
+                archiveEmpty.style.display = 'block';
+                return;
+            }
+            archiveEmpty.style.display = 'none';
+            archiveRows.forEach(row => {
+                const tr = document.createElement('tr');
+                const archivedAt = new Date(row.archivedAt).toLocaleString('he-IL');
+                tr.innerHTML = `
+                    <td>${row.order}</td>
+                    <td>${row.status}</td>
+                    <td>${row.price}</td>
+                    <td>${row.customer}</td>
+                    <td>${archivedAt}</td>
+                `;
+                archiveBody.appendChild(tr);
+            });
+        }
+
+        function clearArchive() {
+            saveArchiveData([]);
+            renderArchive();
+        }
+
+        function toggleArchiveView() {
+            const isActive = archivePanel.classList.toggle('active');
+            toggleArchiveButton.textContent = isActive ? 'סגור ארכיון' : 'הצג ארכיון';
+            if (isActive) {
+                renderArchive();
+            }
+        }
+
+        saveButton.addEventListener('click', () => {
+            saveData(collectData());
+            saveButton.textContent = 'נשמר';
+            setTimeout(() => saveButton.textContent = 'שמור שינויים', 1200);
+        });
+
+        toggleArchiveButton.addEventListener('click', () => {
+            toggleArchiveView();
+        });
+
+        clearArchiveButton.addEventListener('click', () => {
+            clearArchive();
+        });
+
+
+        addButton.addEventListener('click', () => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td></td>
+                <td contenteditable="true" class="editable-cell"></td>
+                <td></td>
+                <td contenteditable="true" class="editable-cell"></td>
+                <td contenteditable="true" class="editable-cell"></td>
+            `;
+            const row = { order: '', status: '', price: '', customer: '' };
+            const actionsCell = createActionsCell(row, tr);
+            tr.children[0].replaceWith(actionsCell);
+            const statusCell = tr.children[2];
+            statusCell.appendChild(createStatusSelect(''));
+            tableBody.appendChild(tr);
+            tr.children[1].focus();
+        });
+
+        renderTable();
+    </script>
+</body>
+</html>
