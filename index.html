@@ -31,6 +31,7 @@
       align-items: center;
       padding: 18px 22px;
       border-bottom: 1px solid #edf2f7;
+      gap: 12px;
     }
 
     .toolbar h1 {
@@ -49,11 +50,17 @@
       margin-left: 6px;
     }
 
-    .save { background: #2563eb; color: white; }
     .add { background: #10b981; color: white; }
     .archive { background: #f59e0b; color: white; }
     .delete-btn { background: #ef4444; color: white; }
     .alert-btn { background: #0284c7; color: white; }
+
+    .sync-status {
+      font-size: 13px;
+      color: #64748b;
+      margin-inline-start: 8px;
+      white-space: nowrap;
+    }
 
     table {
       width: 100%;
@@ -76,10 +83,12 @@
     .editable-cell {
       background: rgba(16, 185, 129, 0.08);
       min-height: 30px;
+      white-space: pre-wrap;
     }
 
     .editable-cell:focus {
       outline: 2px solid #2563eb;
+      outline-offset: -2px;
     }
 
     .status-select {
@@ -112,6 +121,14 @@
       display: block;
     }
 
+    .archive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
     .archive-empty {
       text-align: center;
       background: #f8fafc;
@@ -130,6 +147,11 @@
         flex-direction: column;
         align-items: stretch;
         gap: 10px;
+      }
+      .toolbar > div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
       }
       table {
         display: block;
@@ -150,7 +172,7 @@
       <div>
         <button class="archive" id="toggleArchive">הצג ארכיון</button>
         <button class="add" id="addRow">הוסף שורה</button>
-        <button class="save" id="saveData">שמור שינויים</button>
+        <span class="sync-status" id="syncStatus">מחובר בזמן אמת</span>
       </div>
     </div>
 
@@ -168,8 +190,10 @@
     </table>
 
     <div class="archive-panel" id="archivePanel">
-      <h2>ארכיון רשומות</h2>
-      <button class="delete-btn" id="clearArchive">נקה ארכיון</button>
+      <div class="archive-header">
+        <h2>ארכיון רשומות</h2>
+        <button class="delete-btn" id="clearArchive">נקה ארכיון</button>
+      </div>
 
       <table>
         <thead>
@@ -210,19 +234,26 @@
     const archiveRef = ref(db, "archive");
 
     const tableBody = document.getElementById("tableBody");
-    const saveButton = document.getElementById("saveData");
     const addButton = document.getElementById("addRow");
     const toggleArchiveButton = document.getElementById("toggleArchive");
     const archivePanel = document.getElementById("archivePanel");
     const archiveBody = document.getElementById("archiveBody");
     const archiveEmpty = document.getElementById("archiveEmpty");
     const clearArchiveButton = document.getElementById("clearArchive");
+    const syncStatus = document.getElementById("syncStatus");
+
+    let isRenderingFromFirebase = false;
+    let saveTimer = null;
 
     const statusOptions = [
       { value: "", label: "בחר סטטוס", className: "" },
       { value: "בית", label: "בית", className: "status-home" },
       { value: "שולחן", label: "שולחן", className: "status-table" }
     ];
+
+    function setStatusText(text) {
+      syncStatus.textContent = text;
+    }
 
     function getStatusClass(status) {
       const match = statusOptions.find(option => option.value === status);
@@ -243,6 +274,7 @@
 
       select.addEventListener("change", () => {
         select.className = `status-select ${getStatusClass(select.value)}`;
+        autoSaveOrders();
       });
 
       return select;
@@ -265,8 +297,18 @@
       return rows;
     }
 
-    async function saveOrders() {
+    async function saveOrdersNow() {
+      if (isRenderingFromFirebase) return;
+      setStatusText("שומר...");
       await set(ordersRef, collectData());
+      setStatusText("נשמר אוטומטית");
+      setTimeout(() => setStatusText("מחובר בזמן אמת"), 1200);
+    }
+
+    function autoSaveOrders() {
+      if (isRenderingFromFirebase) return;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveOrdersNow, 500);
     }
 
     function playNotificationSound() {
@@ -323,39 +365,48 @@
 
         const snap = await get(archiveRef);
         const archive = snap.val() || [];
-
         archive.push(rowData);
         await set(archiveRef, archive);
 
         tr.remove();
-        await saveOrders();
+        await saveOrdersNow();
       });
 
       actionsCell.appendChild(alertButton);
       actionsCell.appendChild(deleteButton);
-
       return actionsCell;
     }
 
-    function renderTable(rows = []) {
-      tableBody.innerHTML = "";
-
-      rows.forEach(row => {
-        const tr = document.createElement("tr");
-
-        tr.innerHTML = `
-          <td></td>
-          <td contenteditable="true" class="editable-cell">${row.order || ""}</td>
-          <td></td>
-          <td contenteditable="true" class="editable-cell">${row.price || ""}</td>
-          <td contenteditable="true" class="editable-cell">${row.customer || ""}</td>
-        `;
-
-        tr.children[0].replaceWith(createActionsCell(tr));
-        tr.children[2].appendChild(createStatusSelect(row.status || ""));
-
-        tableBody.appendChild(tr);
+    function attachAutoSaveEvents(tr) {
+      tr.querySelectorAll('[contenteditable="true"]').forEach(cell => {
+        cell.addEventListener("input", autoSaveOrders);
+        cell.addEventListener("blur", saveOrdersNow);
       });
+    }
+
+    function createRow(row = {}) {
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td></td>
+        <td contenteditable="true" class="editable-cell">${row.order || ""}</td>
+        <td></td>
+        <td contenteditable="true" class="editable-cell">${row.price || ""}</td>
+        <td contenteditable="true" class="editable-cell">${row.customer || ""}</td>
+      `;
+
+      tr.children[0].replaceWith(createActionsCell(tr));
+      tr.children[2].appendChild(createStatusSelect(row.status || ""));
+      attachAutoSaveEvents(tr);
+
+      return tr;
+    }
+
+    function renderTable(rows = []) {
+      isRenderingFromFirebase = true;
+      tableBody.innerHTML = "";
+      rows.forEach(row => tableBody.appendChild(createRow(row)));
+      isRenderingFromFirebase = false;
     }
 
     function renderArchive(rows = []) {
@@ -396,30 +447,11 @@
       renderArchive(rows);
     });
 
-    saveButton.addEventListener("click", async () => {
-      await saveOrders();
-      saveButton.textContent = "נשמר";
-      setTimeout(() => {
-        saveButton.textContent = "שמור שינויים";
-      }, 1200);
-    });
-
-    addButton.addEventListener("click", () => {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td></td>
-        <td contenteditable="true" class="editable-cell"></td>
-        <td></td>
-        <td contenteditable="true" class="editable-cell"></td>
-        <td contenteditable="true" class="editable-cell"></td>
-      `;
-
-      tr.children[0].replaceWith(createActionsCell(tr));
-      tr.children[2].appendChild(createStatusSelect(""));
-
+    addButton.addEventListener("click", async () => {
+      const tr = createRow({});
       tableBody.appendChild(tr);
       tr.children[1].focus();
+      await saveOrdersNow();
     });
 
     toggleArchiveButton.addEventListener("click", () => {
