@@ -683,6 +683,213 @@
         });
 
         renderTable();
-    </script>
+    <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC21Uw53Bxjy0zqJvCehrbJdUhS6RZcqes",
+  authDomain: "tik-tak-67bf8.firebaseapp.com",
+  databaseURL: "https://tik-tak-67bf8-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "tik-tak-67bf8",
+  storageBucket: "tik-tak-67bf8.firebasestorage.app",
+  messagingSenderId: "134580367765",
+  appId: "1:134580367765:web:556a8d85ad7baecb62869c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const ordersRef = ref(db, "orders");
+const archiveRef = ref(db, "archive");
+
+const tableBody = document.getElementById("tableBody");
+const saveButton = document.getElementById("saveData");
+const addButton = document.getElementById("addRow");
+const toggleArchiveButton = document.getElementById("toggleArchive");
+const archivePanel = document.getElementById("archivePanel");
+const archiveBody = document.getElementById("archiveBody");
+const archiveEmpty = document.getElementById("archiveEmpty");
+const clearArchiveButton = document.getElementById("clearArchive");
+
+const statusOptions = [
+  { value: "", label: "בחר סטטוס", className: "" },
+  { value: "בית", label: "בית", className: "status-home" },
+  { value: "שולחן", label: "שולחן", className: "status-table" }
+];
+
+function getStatusClass(status) {
+  const match = statusOptions.find(option => option.value === status);
+  return match ? match.className : "";
+}
+
+function createStatusSelect(value) {
+  const select = document.createElement("select");
+  select.className = `status-select ${getStatusClass(value)}`;
+
+  statusOptions.forEach(option => {
+    const opt = document.createElement("option");
+    opt.value = option.value;
+    opt.textContent = option.label;
+    if (option.value === value) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener("change", () => {
+    select.className = `status-select ${getStatusClass(select.value)}`;
+  });
+
+  return select;
+}
+
+function collectData() {
+  const rows = [];
+  Array.from(tableBody.children).forEach(tr => {
+    const order = tr.children[1].textContent.trim();
+    const status = tr.children[2].querySelector("select").value;
+    const price = tr.children[3].textContent.trim();
+    const customer = tr.children[4].textContent.trim();
+
+    if (order || status || price || customer) {
+      rows.push({ order, status, price, customer });
+    }
+  });
+  return rows;
+}
+
+function saveOrders() {
+  return set(ordersRef, collectData());
+}
+
+function createActionsCell(tr) {
+  const actionsCell = document.createElement("td");
+  actionsCell.className = "actions-cell";
+
+  const alertButton = document.createElement("button");
+  alertButton.type = "button";
+  alertButton.className = "action-btn alert-btn";
+  alertButton.textContent = "התראה";
+  alertButton.addEventListener("click", () => {
+    tr.classList.add("alert-highlight");
+    setTimeout(() => tr.classList.remove("alert-highlight"), 5000);
+  });
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "action-btn delete-btn";
+  deleteButton.textContent = "מחק";
+  deleteButton.addEventListener("click", async () => {
+    const rowData = {
+      order: tr.children[1].textContent.trim(),
+      status: tr.children[2].querySelector("select").value,
+      price: tr.children[3].textContent.trim(),
+      customer: tr.children[4].textContent.trim(),
+      archivedAt: Date.now()
+    };
+
+    const currentArchive = await new Promise(resolve => {
+      onValue(archiveRef, snap => resolve(snap.val() || []), { onlyOnce: true });
+    });
+
+    await set(archiveRef, [...currentArchive, rowData]);
+
+    tr.remove();
+    await saveOrders();
+  });
+
+  actionsCell.appendChild(alertButton);
+  actionsCell.appendChild(deleteButton);
+  return actionsCell;
+}
+
+function renderTable(rows = []) {
+  tableBody.innerHTML = "";
+
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td></td>
+      <td contenteditable="true" class="editable-cell order-cell">${row.order || ""}</td>
+      <td></td>
+      <td contenteditable="true" class="editable-cell">${row.price || ""}</td>
+      <td contenteditable="true" class="editable-cell">${row.customer || ""}</td>
+    `;
+
+    tr.children[0].replaceWith(createActionsCell(tr));
+    tr.children[2].appendChild(createStatusSelect(row.status || ""));
+    tableBody.appendChild(tr);
+  });
+}
+
+function renderArchive(rows = []) {
+  archiveBody.innerHTML = "";
+
+  if (!rows || rows.length === 0) {
+    archiveEmpty.style.display = "block";
+    return;
+  }
+
+  archiveEmpty.style.display = "none";
+
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+    const archivedAt = row.archivedAt
+      ? new Date(row.archivedAt).toLocaleString("he-IL")
+      : "";
+
+    tr.innerHTML = `
+      <td>${row.order || ""}</td>
+      <td>${row.status || ""}</td>
+      <td>${row.price || ""}</td>
+      <td>${row.customer || ""}</td>
+      <td>${archivedAt}</td>
+    `;
+
+    archiveBody.appendChild(tr);
+  });
+}
+
+onValue(ordersRef, snapshot => {
+  renderTable(snapshot.val() || []);
+});
+
+onValue(archiveRef, snapshot => {
+  renderArchive(snapshot.val() || []);
+});
+
+saveButton.addEventListener("click", async () => {
+  await saveOrders();
+  saveButton.textContent = "נשמר";
+  setTimeout(() => saveButton.textContent = "שמור שינויים", 1200);
+});
+
+addButton.addEventListener("click", () => {
+  const tr = document.createElement("tr");
+
+  tr.innerHTML = `
+    <td></td>
+    <td contenteditable="true" class="editable-cell"></td>
+    <td></td>
+    <td contenteditable="true" class="editable-cell"></td>
+    <td contenteditable="true" class="editable-cell"></td>
+  `;
+
+  tr.children[0].replaceWith(createActionsCell(tr));
+  tr.children[2].appendChild(createStatusSelect(""));
+  tableBody.appendChild(tr);
+  tr.children[1].focus();
+});
+
+toggleArchiveButton.addEventListener("click", () => {
+  const isActive = archivePanel.classList.toggle("active");
+  toggleArchiveButton.textContent = isActive ? "סגור ארכיון" : "הצג ארכיון";
+});
+
+clearArchiveButton.addEventListener("click", async () => {
+  await set(archiveRef, []);
+});
+</script>
+
 </body>
 </html>
